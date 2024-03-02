@@ -101,7 +101,7 @@ def main(args):
         dataset, batch_size=128 // args.n_gpu, sampler=sampler, num_workers=2
     )
 
-    model = VQVAE().to(device)
+    model = VQVAE(channel=32, n_embed=128, embed_dim=16).to(device)
 
     if args.distributed:
         model = nn.parallel.DistributedDataParallel(

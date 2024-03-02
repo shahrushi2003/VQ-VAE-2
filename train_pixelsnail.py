@@ -73,9 +73,9 @@ if __name__ == "__main__":
     parser.add_argument("--epoch", type=int, default=20)
     parser.add_argument("--hier", type=str, default="top")
     parser.add_argument("--lr", type=float, default=3e-4)
-    parser.add_argument("--channel", type=int, default=256)
+    parser.add_argument("--channel", type=int, default=64)
     parser.add_argument("--n_res_block", type=int, default=4)
-    parser.add_argument("--n_res_channel", type=int, default=256)
+    parser.add_argument("--n_res_channel", type=int, default=64)
     parser.add_argument("--n_out_res_block", type=int, default=0)
     parser.add_argument("--n_cond_res_block", type=int, default=3)
     parser.add_argument("--dropout", type=float, default=0.1)
@@ -104,7 +104,7 @@ if __name__ == "__main__":
     if args.hier == "top":
         model = PixelSNAIL(
             [4, 4],
-            512,
+            128,
             args.channel,
             5,
             4,
@@ -117,7 +117,7 @@ if __name__ == "__main__":
     elif args.hier == "bottom":
         model = PixelSNAIL(
             [8, 8],
-            512,
+            128,
             args.channel,
             5,
             4,
