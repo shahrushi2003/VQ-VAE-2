@@ -26,23 +26,23 @@ def extract(lmdb_env, loader, model, device):
 
             for file, top, bottom in zip(filename, id_t, id_b):
                 row = CodeRow(top=top, bottom=bottom, filename=file)
-                txn.put(str(index).encode('utf-8'), pickle.dumps(row))
+                txn.put(str(index).encode("utf-8"), pickle.dumps(row))
                 index += 1
-                pbar.set_description(f'inserted: {index}')
+                pbar.set_description(f"inserted: {index}")
 
-        txn.put('length'.encode('utf-8'), str(index).encode('utf-8'))
+        txn.put("length".encode("utf-8"), str(index).encode("utf-8"))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--size', type=int, default=256)
-    parser.add_argument('--ckpt', type=str)
-    parser.add_argument('--name', type=str)
-    parser.add_argument('path', type=str)
+    parser.add_argument("--size", type=int, default=256)
+    parser.add_argument("--ckpt", type=str)
+    parser.add_argument("--name", type=str)
+    parser.add_argument("path", type=str)
 
     args = parser.parse_args()
 
-    device = 'cuda'
+    device = "cuda"
 
     transform = transforms.Compose(
         [
@@ -54,7 +54,7 @@ if __name__ == '__main__':
     )
 
     dataset = ImageFileDataset(args.path, transform=transform)
-    loader = DataLoader(dataset, batch_size=128, shuffle=False, num_workers=4)
+    loader = DataLoader(dataset, batch_size=128, shuffle=False, num_workers=2)
 
     model = VQVAE()
     model.load_state_dict(torch.load(args.ckpt))

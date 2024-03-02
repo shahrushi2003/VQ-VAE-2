@@ -75,7 +75,7 @@ def train(epoch, loader, model, optimizer, scheduler, device):
                     f"sample/{str(epoch + 1).zfill(5)}_{str(i).zfill(5)}.png",
                     nrow=sample_size,
                     normalize=True,
-                    range=(-1, 1),
+                    value_range=(-1, 1),
                 )
 
                 model.train()
@@ -132,11 +132,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--n_gpu", type=int, default=1)
 
-    port = (
-        2 ** 15
-        + 2 ** 14
-        + hash(os.getuid() if sys.platform != "win32" else 1) % 2 ** 14
-    )
+    port = 2**15 + 2**14 + hash(os.getuid() if sys.platform != "win32" else 1) % 2**14
     parser.add_argument("--dist_url", default=f"tcp://127.0.0.1:{port}")
 
     parser.add_argument("--size", type=int, default=256)
