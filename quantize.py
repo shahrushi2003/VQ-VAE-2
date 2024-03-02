@@ -1,36 +1,6 @@
-import argparse
-import matplotlib.pyplot as plt
-import numpy as np
-import random
-import cupy as cp
-from PIL import Image
-from scipy.signal import savgol_filter
-import math
-import time
-import warnings
-
-import json
-import os
-
-import umap
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from sklearn.model_selection import ParameterGrid
-from torch.utils.data import DataLoader, random_split
-import torch.optim as optim
-import warnings
-import torchvision.datasets as datasets
-import torchvision.transforms as transforms
-from torchvision.utils import make_grid
-from cffi.backend_ctypes import xrange
-from tqdm import tqdm
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-"""## Load Data"""
-
 
 # Kmeans--init hook definition
 
@@ -40,7 +10,6 @@ def data_dependent_init_forward_hook(
     self, inputs, outputs, use_kmeans=True, verbose=False
 ):
     """initializes codebook from data"""
-
     if (not self.training) or (self.data_initialized.item() == 1):
         return
 
@@ -49,15 +18,12 @@ def data_dependent_init_forward_hook(
 
     def sample_centroids(z_e, num_codes):
         """replaces the data of the codebook with z_e randomly."""
-
         z_e = z_e.reshape(-1, z_e.size(-1))
-
         if num_codes >= z_e.size(0):
             e_msg = (
                 f"\ncodebook size > warmup samples: {num_codes} vs {z_e.size(0)}. "
                 + "recommended to decrease the codebook size or increase batch size."
             )
-
             # warnings.warn(str(cs(e_msg, 'yellow')))
 
             # repeat until it fits and add noise
@@ -98,7 +64,6 @@ class SoftClustering:
     def __init__(self, delta=0.2, lr=0.0):
         """
         Initialize the SoftClustering class.
-
         Args:
             delta (float): The update rate (a constant).
         """
@@ -115,44 +80,21 @@ class SoftClustering:
     def update_delta(self):
         self.delta -= self.delta * self.lr
 
-    # @torch.no_grad()
-    # def update_sim_matrix(self, codebook):
-    #     """
-    #     Perform soft clustering update on signal points.
-    #
-    #     Args:
-    #         codebook (torch.Tensor): The original codebook.
-    #
-    #     Returns:
-    #         newcodebook (torch.Tensor): The updated codebook.
-    #     """
-    #
-    #     num_codes, feature_dim = codebook.shape
-    #
-    #     codebook_expanded = codebook.unsqueeze(0).expand(num_codes, -1, -1)
-    #     codebook_transposed = codebook_expanded.permute(1, 0, 2)
-    #     distances = torch.norm(codebook_expanded - codebook_transposed, p=2, dim=2)
-    #     self.sim_matrix = torch.exp(1.0 / (distances + self.epsilon))
-    #
-    #     del distances, codebook_expanded, codebook_transposed
-    #     # return codebook
     @torch.no_grad()
     def update_sim_matrix(self, codebook):
         """
         Perform similarity matrix update based on current codebook.
-
         Args:
             codebook (torch.Tensor): The current codebook.
-
         Results:
             update sim_matrix (torch.Tensor)
         """
 
         num_codes, feature_dim = codebook.shape
         # compute distances and similarity
-        codebook_expanded = codebook.unsqueeze(0).expand(num_codes, -1, -1)
-        # shape: [num_codes, num_codes, embedding_dim]
-
+        codebook_expanded = codebook.unsqueeze(0).expand(
+            num_codes, -1, -1
+        )  # shape: [num_codes, num_codes, embedding_dim]
         # transpose the 1st and 2nd dim of codebook_expanded
         codebook_transposed = codebook_expanded.permute(1, 0, 2)
         # compute distances along the 3rd dim with l2 norm, forming a distance matrix of shape [num_codes, num_codes]
@@ -164,10 +106,8 @@ class SoftClustering:
     def compute_weighted_sum(self, codebook):
         """
         Compute the second term of equation 11, i.e. compute the weighted sum of other codes for any code
-
         Args:
             codebook (torch.Tensor): The current codebook.
-
         Return:
             weighted_codebook_sum (torch.Tensor)
         """
@@ -183,15 +123,6 @@ class SoftClustering:
         weighted_codebook_sum = torch.matmul(weights, codebook)
         return weighted_codebook_sum
 
-
-# test_cluster = SoftClustering()
-# import time
-# import torch
-
-# _num = 2048
-# _dim = 64
-# test_input = torch.rand([_num, _dim]).to(device)
-# test_cluster.update_codebook(test_input)
 
 """## Vector Quantizer Layer
 
@@ -251,7 +182,8 @@ class VectorQuantizer(nn.Module):
 
     def forward(self, inputs):
         # convert inputs from BCHW -> BHWC
-        inputs = inputs.permute(0, 2, 3, 1).contiguous()
+        # inputs = inputs.permute(0, 2, 3, 1).contiguous()
+        inputs = inputs.contiguous()
         input_shape = inputs.shape
 
         # Flatten input
@@ -319,11 +251,14 @@ class VectorQuantizer(nn.Module):
         # convert quantized from BHWC -> BCHW
         return (
             loss,
-            quantized.permute(0, 3, 1, 2).contiguous(),
+            quantized.contiguous(),
             perplexity,
-            encodings,
+            encoding_indices.view(*inputs.shape[:-1]),
             inputs,
         )
+
+    def embed_code(self, encodings):
+        return F.embedding(encodings, self._embedding.weight)
 
 
 """We will also implement a slightly modified version  which will use exponential moving averages to update the 
@@ -391,7 +326,9 @@ class VectorQuantizerEMA(nn.Module):
 
     def forward(self, inputs):
         # convert inputs from BCHW -> BHWC
-        inputs = inputs.permute(0, 2, 3, 1).contiguous()
+        # inputs = inputs.reshape(-1, self._embedding_dim).contiguous()
+        # inputs = inputs.permute(0, 2, 3, 1).contiguous()
+        inputs = inputs.contiguous()
         input_shape = inputs.shape
 
         # Flatten input
@@ -503,8 +440,11 @@ class VectorQuantizerEMA(nn.Module):
         # convert quantized from BHWC -> BCHW
         return (
             loss,
-            quantized.permute(0, 3, 1, 2).contiguous(),
+            quantized.contiguous(),
             perplexity,
-            encodings,
+            encoding_indices.view(*inputs.shape[:-1]),
             inputs,
         )
+
+    def embed_code(self, encodings):
+        return F.embedding(encodings, self._embedding.weight)
