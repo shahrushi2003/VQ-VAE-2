@@ -25,19 +25,28 @@ def sample_model(model, device, batch, size, temperature, condition=None):
 
 
 def load_model(model, checkpoint, device):
-    ckpt = torch.load(os.path.join('checkpoint', checkpoint))
+    ckpt = torch.load(os.path.join("checkpoint", checkpoint))
 
-    
-    if 'args' in ckpt:
-        args = ckpt['args']
+    if "args" in ckpt:
+        args = ckpt["args"]
 
-    if model == 'vqvae':
-        model = VQVAE()
+    if model == "vqvae":
+        vq_kwargs = {
+            "soft_discretization": True,
+            "gamma": 0.2,
+            "gamma_lr": 0.0002,
+            "soft_clustering": True,
+            "delta": 0.1,
+            "delta_lr": 0.0002,
+            "kmeans_init": False,
+        }
 
-    elif model == 'pixelsnail_top':
+        model = VQVAE(channel=32, n_embed=128, embed_dim=16, **vq_kwargs)
+
+    elif model == "pixelsnail_top":
         model = PixelSNAIL(
-            [32, 32],
-            512,
+            [4, 4],
+            128,
             args.channel,
             5,
             4,
@@ -47,10 +56,10 @@ def load_model(model, checkpoint, device):
             n_out_res_block=args.n_out_res_block,
         )
 
-    elif model == 'pixelsnail_bottom':
+    elif model == "pixelsnail_bottom":
         model = PixelSNAIL(
-            [64, 64],
-            512,
+            [8, 8],
+            128,
             args.channel,
             5,
             4,
@@ -61,9 +70,9 @@ def load_model(model, checkpoint, device):
             n_cond_res_block=args.n_cond_res_block,
             cond_res_channel=args.n_res_channel,
         )
-        
-    if 'model' in ckpt:
-        ckpt = ckpt['model']
+
+    if "model" in ckpt:
+        ckpt = ckpt["model"]
 
     model.load_state_dict(ckpt)
     model = model.to(device)
@@ -72,22 +81,22 @@ def load_model(model, checkpoint, device):
     return model
 
 
-if __name__ == '__main__':
-    device = 'cuda'
+if __name__ == "__main__":
+    device = "cuda"
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--batch', type=int, default=8)
-    parser.add_argument('--vqvae', type=str)
-    parser.add_argument('--top', type=str)
-    parser.add_argument('--bottom', type=str)
-    parser.add_argument('--temp', type=float, default=1.0)
-    parser.add_argument('filename', type=str)
+    parser.add_argument("--batch", type=int, default=8)
+    parser.add_argument("--vqvae", type=str)
+    parser.add_argument("--top", type=str)
+    parser.add_argument("--bottom", type=str)
+    parser.add_argument("--temp", type=float, default=1.0)
+    parser.add_argument("filename", type=str)
 
     args = parser.parse_args()
 
-    model_vqvae = load_model('vqvae', args.vqvae, device)
-    model_top = load_model('pixelsnail_top', args.top, device)
-    model_bottom = load_model('pixelsnail_bottom', args.bottom, device)
+    model_vqvae = load_model("vqvae", args.vqvae, device)
+    model_top = load_model("pixelsnail_top", args.top, device)
+    model_bottom = load_model("pixelsnail_bottom", args.bottom, device)
 
     top_sample = sample_model(model_top, device, args.batch, [32, 32], args.temp)
     bottom_sample = sample_model(
