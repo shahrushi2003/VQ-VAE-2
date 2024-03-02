@@ -56,7 +56,17 @@ if __name__ == "__main__":
     dataset = ImageFileDataset(args.path, transform=transform)
     loader = DataLoader(dataset, batch_size=128, shuffle=False, num_workers=2)
 
-    model = VQVAE()
+    vq_kwargs = {
+        "soft_discretization": True,
+        "gamma": 0.2,
+        "gamma_lr": 0.0002,
+        "soft_clustering": True,
+        "delta": 0.1,
+        "delta_lr": 0.0002,
+        "kmeans_init": False,
+    }
+
+    model = VQVAE(channel=32, n_embed=128, embed_dim=16, **vq_kwargs)
     model.load_state_dict(torch.load(args.ckpt))
     model = model.to(device)
     model.eval()

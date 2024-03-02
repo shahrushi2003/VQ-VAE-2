@@ -101,7 +101,17 @@ def main(args):
         dataset, batch_size=128 // args.n_gpu, sampler=sampler, num_workers=2
     )
 
-    model = VQVAE(channel=32, n_embed=128, embed_dim=16).to(device)
+    vq_kwargs = {
+        "soft_discretization": True,
+        "gamma": 0.2,
+        "gamma_lr": 0.0002,
+        "soft_clustering": True,
+        "delta": 0.1,
+        "delta_lr": 0.0002,
+        "kmeans_init": False,
+    }
+
+    model = VQVAE(channel=32, n_embed=128, embed_dim=16, **vq_kwargs).to(device)
 
     if args.distributed:
         model = nn.parallel.DistributedDataParallel(
@@ -136,8 +146,8 @@ if __name__ == "__main__":
     parser.add_argument("--dist_url", default=f"tcp://127.0.0.1:{port}")
 
     parser.add_argument("--size", type=int, default=256)
-    parser.add_argument("--epoch", type=int, default=560)
-    parser.add_argument("--lr", type=float, default=3e-4)
+    parser.add_argument("--epoch", type=int, default=20)
+    parser.add_argument("--lr", type=float, default=3e-5)
     parser.add_argument("--sched", type=str)
     parser.add_argument("path", type=str)
 

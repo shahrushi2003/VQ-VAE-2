@@ -4,6 +4,8 @@ from torch.nn import functional as F
 
 import distributed as dist_fn
 
+from quantize import VectorQuantizer, VectorQuantizerEMA
+
 
 # Copyright 2018 The Sonnet Authors. All Rights Reserved.
 #
@@ -171,18 +173,33 @@ class VQVAE(nn.Module):
         embed_dim=64,
         n_embed=512,
         decay=0.99,
+        commitment_cost=0,
+        **vq_kwargs,
     ):
         super().__init__()
 
         self.enc_b = Encoder(in_channel, channel, n_res_block, n_res_channel, stride=4)
         self.enc_t = Encoder(channel, channel, n_res_block, n_res_channel, stride=2)
         self.quantize_conv_t = nn.Conv2d(channel, embed_dim, 1)
-        self.quantize_t = Quantize(embed_dim, n_embed)
+        if decay > 0.0:
+            self.quantize_t = VectorQuantizerEMA(
+                n_embed, embed_dim, decay=decay, commitment_cost=1, **vq_kwargs
+            )
+            self.quantize_b = VectorQuantizerEMA(
+                n_embed, embed_dim, decay=decay, commitment_cost=1, **vq_kwargs
+            )
+        else:
+            self.quantize_t = VectorQuantizer(
+                n_embed, embed_dim, commitment_cost=commitment_cost, **vq_kwargs
+            )
+            self.quantize_b = VectorQuantizer(
+                n_embed, embed_dim, commitment_cost=commitment_cost, **vq_kwargs
+            )
         self.dec_t = Decoder(
             embed_dim, embed_dim, channel, n_res_block, n_res_channel, stride=2
         )
         self.quantize_conv_b = nn.Conv2d(embed_dim + channel, embed_dim, 1)
-        self.quantize_b = Quantize(embed_dim, n_embed)
+        # self.quantize_b = Quantize(embed_dim, n_embed)
         self.upsample_t = nn.ConvTranspose2d(
             embed_dim, embed_dim, 4, stride=2, padding=1
         )
@@ -206,7 +223,8 @@ class VQVAE(nn.Module):
         enc_t = self.enc_t(enc_b)
 
         quant_t = self.quantize_conv_t(enc_t).permute(0, 2, 3, 1)
-        quant_t, diff_t, id_t = self.quantize_t(quant_t)
+        # quant_t, diff_t, id_t = self.quantize_t(quant_t)
+        diff_t, quant_t, perp_t, id_t, _ = self.quantize_t(quant_t)
         quant_t = quant_t.permute(0, 3, 1, 2)
         diff_t = diff_t.unsqueeze(0)
 
@@ -214,7 +232,7 @@ class VQVAE(nn.Module):
         enc_b = torch.cat([dec_t, enc_b], 1)
 
         quant_b = self.quantize_conv_b(enc_b).permute(0, 2, 3, 1)
-        quant_b, diff_b, id_b = self.quantize_b(quant_b)
+        diff_b, quant_b, perp_b, id_b, _ = self.quantize_b(quant_b)
         quant_b = quant_b.permute(0, 3, 1, 2)
         diff_b = diff_b.unsqueeze(0)
 
